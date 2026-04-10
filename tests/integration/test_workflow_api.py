@@ -29,11 +29,13 @@ def client(tmp_path, mock_obs, mock_ptz, mock_scoreboard) -> TestClient:
 
 
 class TestJamReset:
-    def test_jam_reset_requires_game(self, client: TestClient):
+    def test_jam_reset_works_without_game(self, client: TestClient, mock_obs):
+        """OBS+PTZ should work even with no active game."""
         resp = client.post("/workflow/jam-reset")
-        assert resp.status_code == 409
+        assert resp.status_code == 200
+        mock_obs.set_scene.assert_called()
 
-    def test_jam_reset_success(self, client: TestClient, mock_obs):
+    def test_jam_reset_with_game(self, client: TestClient, mock_obs):
         client.post("/game/start")
         resp = client.post("/workflow/jam-reset")
         assert resp.status_code == 200
@@ -44,15 +46,18 @@ class TestJamReset:
 
     def test_jam_reset_get_compat(self, client: TestClient):
         """Stream Deck compatibility."""
-        client.post("/game/start")
         resp = client.get("/workflow/jam-reset")
         assert resp.status_code == 200
 
 
 class TestJamResetAndPlay:
-    def test_requires_game(self, client: TestClient):
+    def test_works_without_game(self, client: TestClient, mock_obs):
+        """Should degrade to safe scene when no game is active."""
         resp = client.post("/workflow/jam-reset-and-play")
-        assert resp.status_code == 409
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["play_path"] is None
+        mock_obs.set_scene.assert_called_with("BUMPER")
 
     def test_no_replay(self, client: TestClient, mock_obs):
         client.post("/game/start")
@@ -60,18 +65,15 @@ class TestJamResetAndPlay:
         assert resp.status_code == 200
         data = resp.json()
         assert data["play_path"] is None
-        # Should switch to safe/bumper scene
         mock_obs.set_scene.assert_called_with("BUMPER")
 
 
 class TestBackwardCompatRoutes:
     def test_obs_jam_reset_alias(self, client: TestClient):
-        client.post("/game/start")
         resp = client.post("/obs/jam-reset")
         assert resp.status_code == 200
 
     def test_obs_jam_reset_and_play_alias(self, client: TestClient):
-        client.post("/game/start")
         resp = client.post("/obs/jam-reset-and-play")
         assert resp.status_code == 200
 

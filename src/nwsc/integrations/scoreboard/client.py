@@ -105,6 +105,28 @@ class ScoreboardClient:
         assert self._period is not None and self._jam is not None
         return ScoreState(period=self._period, jam=self._jam)
 
+    async def get_state_or_last(self) -> ScoreState:
+        """Return the current scoreboard state, falling back to the last known state.
+
+        Calls get_state() first (which retries connection + priming). If that
+        fails entirely, returns the most recent cached period/jam. If no state
+        has ever been received, returns (0, 0) as a safe default — which means
+        no clips will be found, but OBS/PTZ calls won't be blocked.
+        """
+        try:
+            return await self.get_state()
+        except Exception as e:
+            if self._period is not None and self._jam is not None:
+                log.warning(
+                    "scoreboard.using_cached_state",
+                    period=self._period,
+                    jam=self._jam,
+                    error=str(e),
+                )
+                return ScoreState(period=self._period, jam=self._jam)
+            log.warning("scoreboard.no_state_available", error=str(e))
+            return ScoreState(period=0, jam=0)
+
     async def run_listener(self) -> None:
         """Long-running background task: listen for updates with auto-reconnect."""
         while True:
@@ -112,7 +134,11 @@ class ScoreboardClient:
                 if self._ws is None:
                     await self.connect()
                 while True:
-                    await self._recv_one()
+                    try:
+                        await self._recv_one(timeout=60.0)
+                    except (asyncio.TimeoutError, TimeoutError):
+                        # No message within timeout — perfectly normal between jams
+                        pass
             except (ConnectionClosed, ConnectionError, OSError) as e:
                 log.warning("scoreboard.connection_lost", error=str(e))
                 self._connected = False

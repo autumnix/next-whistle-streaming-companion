@@ -29,11 +29,8 @@ async def save_and_arm(
 async def jam_reset(
     jam_cycle: JamCycleOrchestrator = Depends(get_jam_cycle),
 ) -> JamResetResponse:
-    """Jam reset without replay playback."""
-    try:
-        return await jam_cycle.jam_reset()
-    except NoActiveGameError as e:
-        raise HTTPException(status_code=409, detail=str(e))
+    """Jam reset without replay playback. Always succeeds — OBS+PTZ are never blocked."""
+    return await jam_cycle.jam_reset()
 
 
 @router.api_route(
@@ -43,7 +40,4 @@ async def jam_reset_and_play(
     jam_cycle: JamCycleOrchestrator = Depends(get_jam_cycle),
 ) -> JamResetResponse:
     """Jam reset with replay: play highlight, then switch back to live cam."""
-    try:
-        return await jam_cycle.jam_reset_and_play()
-    except NoActiveGameError as e:
-        raise HTTPException(status_code=409, detail=str(e))
+    return await jam_cycle.jam_reset_and_play()

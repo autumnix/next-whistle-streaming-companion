@@ -56,27 +56,38 @@ class JamCycleOrchestrator:
         )
 
     async def jam_reset(self) -> JamResetResponse:
-        """Jam reset without replay: switch to cam1 and reset PTZ cameras."""
-        game_id = await self._bout.require_current_game()
+        """Jam reset without replay: switch to cam1 and reset PTZ cameras.
 
-        result = await self._clip.consume_for_jam(game_id)
-
+        OBS and PTZ happen first so the camera operator is never blocked.
+        Game and clip consumption are best-effort afterward.
+        """
+        # 1) OBS + PTZ first — nothing blocks these
         cam1 = self._config.obs.scenes.cam1
         self._obs.set_scene(cam1)
 
-        # Reset PTZ cameras (fire and forget)
         preset = self._config.ptz.jam_start_preset
         try:
             await self._ptz.call_preset_all(preset)
         except Exception as e:
             log.warning("jam_reset.ptz_failed", error=str(e))
 
+        # 2) Clip metadata — best-effort, does not block the operator
+        result = None
+        try:
+            game_id = await self._bout.get_current_game_id()
+            if game_id:
+                result = await self._clip.consume_for_jam(game_id)
+            else:
+                log.info("jam_reset.no_active_game")
+        except Exception as e:
+            log.warning("jam_reset.clip_consume_failed", error=str(e))
+
         return JamResetResponse(
-            current_period=result.current_period,
-            current_jam=result.current_jam,
-            previous_period=result.current_period,
-            previous_jam=result.current_jam,
-            play_path=result.play_path,
+            current_period=result.current_period if result else 0,
+            current_jam=result.current_jam if result else 0,
+            previous_period=result.current_period if result else 0,
+            previous_jam=result.current_jam if result else 0,
+            play_path=result.play_path if result else None,
         )
 
     async def jam_reset_and_play(self) -> JamResetResponse:
@@ -94,16 +105,23 @@ class JamCycleOrchestrator:
            - Call PTZ preset
            - Schedule delayed switch back to cam1
         """
-        game_id = await self._bout.require_current_game()
-
-        result = await self._clip.consume_for_jam(game_id)
+        # Consume clip — if no game or scoreboard/DB fails, treat as "no replay"
+        result = None
+        try:
+            game_id = await self._bout.get_current_game_id()
+            if game_id:
+                result = await self._clip.consume_for_jam(game_id)
+            else:
+                log.info("jam_reset_and_play.no_active_game")
+        except Exception as e:
+            log.warning("jam_reset_and_play.clip_consume_failed", error=str(e))
 
         cam1 = self._config.obs.scenes.cam1
         replay_scene = self._config.obs.scenes.replay
         safe_scene = self._config.obs.scenes.safe
         preset = self._config.ptz.jam_start_preset
 
-        if result.play_path:
+        if result and result.play_path:
             # Replay exists: cut to replay scene
             self._obs.set_scene(replay_scene)
 
@@ -140,11 +158,11 @@ class JamCycleOrchestrator:
             log.info("jam_reset_and_play.no_replay", switch_back_in=self._config.ptz.settle_s)
 
         return JamResetResponse(
-            current_period=result.current_period,
-            current_jam=result.current_jam,
-            previous_period=result.current_period,
-            previous_jam=result.current_jam,
-            play_path=result.play_path,
+            current_period=result.current_period if result else 0,
+            current_jam=result.current_jam if result else 0,
+            previous_period=result.current_period if result else 0,
+            previous_jam=result.current_jam if result else 0,
+            play_path=result.play_path if result else None,
         )
 
     def _schedule_delayed_switch(self, scene: str, delay_s: float) -> None:

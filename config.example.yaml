@@ -16,7 +16,7 @@ recordings:
 obs:
   host: "127.0.0.1"
   port: 4455
-  password: ""
+  password: "7RLWyr28m8HgbBAn"
   timeout_s: 5
   scenes:
     cam1: "LIVE - CAM 1"
@@ -24,7 +24,7 @@ obs:
     replay: "REPLAY"
     safe: "BUMPER"
   media_input_name: "REPLAY_MEDIA"
-  replay_length_s: 8.0
+  replay_length_s: 7.0
   replay_pad_s: 0.25
   transition:
     name: "Fade"

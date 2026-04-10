@@ -120,6 +120,104 @@ class TestJamResetAndPlay:
         assert resp.current_period == 1
 
 
+class TestNoGameResilience:
+    async def test_jam_reset_works_without_game(
+        self,
+        jam_cycle: JamCycleOrchestrator,
+        mock_obs: MagicMock,
+        mock_ptz: MagicMock,
+    ):
+        """OBS and PTZ work even when no game has been started."""
+        resp = await jam_cycle.jam_reset()
+
+        mock_obs.set_scene.assert_called_with("CAM1")
+        mock_ptz.call_preset_all.assert_called_with(0)
+        assert resp.current_period == 0
+        assert resp.play_path is None
+
+    async def test_jam_reset_and_play_works_without_game(
+        self,
+        jam_cycle: JamCycleOrchestrator,
+        mock_obs: MagicMock,
+        mock_ptz: MagicMock,
+    ):
+        """Falls through to safe scene when no game is active."""
+        resp = await jam_cycle.jam_reset_and_play()
+
+        mock_obs.set_scene.assert_called_with("BUMPER")
+        mock_ptz.call_preset_all.assert_called_with(0)
+        assert resp.play_path is None
+
+
+class TestScoreboardResilience:
+    async def test_jam_reset_succeeds_when_scoreboard_down(
+        self,
+        jam_cycle: JamCycleOrchestrator,
+        bout_svc: BoutService,
+        mock_obs: MagicMock,
+        mock_ptz: MagicMock,
+        mock_scoreboard: MagicMock,
+    ):
+        """OBS and PTZ should work even if scoreboard is completely unreachable."""
+        mock_scoreboard.get_state_or_last.side_effect = RuntimeError("scoreboard down")
+        await bout_svc.start_game()
+
+        resp = await jam_cycle.jam_reset()
+
+        # OBS and PTZ should still have been called
+        mock_obs.set_scene.assert_called_with("CAM1")
+        mock_ptz.call_preset_all.assert_called_with(0)
+        # Response has zero values since clip consume failed
+        assert resp.current_period == 0
+        assert resp.current_jam == 0
+        assert resp.play_path is None
+
+    async def test_jam_reset_obs_ptz_before_clip(
+        self,
+        jam_cycle: JamCycleOrchestrator,
+        bout_svc: BoutService,
+        mock_obs: MagicMock,
+        mock_ptz: MagicMock,
+        mock_scoreboard: MagicMock,
+    ):
+        """OBS and PTZ are called before clip consumption in jam_reset."""
+        call_order = []
+        mock_obs.set_scene.side_effect = lambda s: call_order.append("obs")
+        mock_ptz.call_preset_all.side_effect = lambda p: call_order.append("ptz")
+        original_consume = jam_cycle._clip.consume_for_jam
+
+        async def tracked_consume(game_id):
+            call_order.append("clip")
+            return await original_consume(game_id)
+
+        jam_cycle._clip.consume_for_jam = tracked_consume
+
+        await bout_svc.start_game()
+        await jam_cycle.jam_reset()
+
+        assert call_order.index("obs") < call_order.index("clip")
+        assert call_order.index("ptz") < call_order.index("clip")
+
+    async def test_jam_reset_and_play_degrades_when_scoreboard_down(
+        self,
+        jam_cycle: JamCycleOrchestrator,
+        bout_svc: BoutService,
+        mock_obs: MagicMock,
+        mock_ptz: MagicMock,
+        mock_scoreboard: MagicMock,
+    ):
+        """When scoreboard is down, jam_reset_and_play treats it as 'no replay'."""
+        mock_scoreboard.get_state_or_last.side_effect = RuntimeError("scoreboard down")
+        await bout_svc.start_game()
+
+        resp = await jam_cycle.jam_reset_and_play()
+
+        # Should fall through to safe/bumper scene (no replay)
+        mock_obs.set_scene.assert_called_with("BUMPER")
+        mock_ptz.call_preset_all.assert_called_with(0)
+        assert resp.play_path is None
+
+
 class TestSaveAndArm:
     async def test_save_and_arm(
         self,

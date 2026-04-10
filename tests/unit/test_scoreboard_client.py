@@ -164,3 +164,35 @@ class TestHealthCheck:
         sb = ScoreboardClient(sb_config)
         status = await sb.health_check()
         assert status.healthy is False
+
+
+class TestGetStateOrLast:
+    async def test_returns_live_state_when_connected(self, sb_config: ScoreboardConfig):
+        sb = ScoreboardClient(sb_config)
+        sb._period = 2
+        sb._jam = 7
+        sb._ws = AsyncMock()
+        sb._ws.recv = AsyncMock(side_effect=asyncio.TimeoutError)
+
+        state = await sb.get_state_or_last()
+        assert state == ScoreState(period=2, jam=7)
+
+    async def test_falls_back_to_cached_state(self, sb_config: ScoreboardConfig):
+        sb = ScoreboardClient(sb_config)
+        # Simulate previously received state
+        sb._period = 1
+        sb._jam = 5
+        # Force get_state to fail (simulates unreachable scoreboard)
+        sb.get_state = AsyncMock(side_effect=RuntimeError("connection refused"))
+
+        state = await sb.get_state_or_last()
+        assert state == ScoreState(period=1, jam=5)
+
+    async def test_returns_zero_when_never_connected(self, sb_config: ScoreboardConfig):
+        sb = ScoreboardClient(sb_config)
+        # No cached state at all — period and jam are None
+        # Force get_state to fail
+        sb.get_state = AsyncMock(side_effect=RuntimeError("connection refused"))
+
+        state = await sb.get_state_or_last()
+        assert state == ScoreState(period=0, jam=0)

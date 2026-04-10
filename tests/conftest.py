@@ -69,6 +69,7 @@ def mock_scoreboard() -> MagicMock:
     sb.name = "scoreboard"
     sb.health_check = AsyncMock(return_value=HealthStatus(healthy=True, detail="period=1 jam=3"))
     sb.get_state = AsyncMock(return_value=ScoreState(period=1, jam=3))
+    sb.get_state_or_last = AsyncMock(return_value=ScoreState(period=1, jam=3))
     sb.connect = AsyncMock()
     sb.disconnect = AsyncMock()
     sb.start_listener.return_value = MagicMock()
