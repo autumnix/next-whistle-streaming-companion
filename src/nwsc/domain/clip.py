@@ -80,7 +80,7 @@ class ClipService:
         Returns the play_path if a replay is available, or None.
         Also skips armed clips from other jams to prevent leakage.
         """
-        state = await self._scoreboard.get_state()
+        state = await self._scoreboard.get_state_or_last()
 
         play_path = await self._repo.consume_armed_clip(
             game_id, state.period, state.jam
