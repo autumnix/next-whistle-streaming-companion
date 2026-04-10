@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}NWSC{% endblock %} - Next Whistle Streaming Companion</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <header>
+        <nav>
+            <h1><a href="/dashboard">NWSC</a></h1>
+            <div class="nav-links">
+                <a href="/dashboard">Status</a>
+                <a href="/dashboard/config">Config</a>
+                <a href="/docs" target="_blank">API Docs</a>
+            </div>
+        </nav>
+    </header>
+    <main>
+        {% block content %}{% endblock %}
+    </main>
+    {% block scripts %}{% endblock %}
+</body>
+</html>
