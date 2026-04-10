@@ -29,6 +29,8 @@ obs:
   transition:
     name: "Fade"
     duration_ms: 300
+  overlay_groups:
+    - "Stat Overlays"
 
 ptz:
   cameras:

@@ -15,6 +15,13 @@ log = structlog.get_logger()
 
 
 @dataclass
+class GroupItem:
+    name: str
+    item_id: int
+    enabled: bool
+
+
+@dataclass
 class MediaStatus:
     state: str
     duration_ms: float | None
@@ -145,3 +152,32 @@ class OBSClient:
             duration_ms=duration,
             cursor_ms=cursor,
         )
+
+    # --- Group / overlay source methods ---
+
+    def get_group_items(self, group_name: str) -> list[GroupItem]:
+        """Get all items (sources) inside an OBS group/folder."""
+        c = self._connect()
+        result = c.get_group_scene_item_list(group_name)
+        items = []
+        for item in result.scene_items:
+            items.append(
+                GroupItem(
+                    name=item.get("sourceName", ""),
+                    item_id=item.get("sceneItemId", 0),
+                    enabled=item.get("sceneItemEnabled", False),
+                )
+            )
+        return items
+
+    def set_item_enabled(self, scene_or_group: str, item_id: int, enabled: bool) -> None:
+        """Set visibility of a scene item by its ID."""
+        c = self._connect()
+        c.set_scene_item_enabled(scene_or_group, item_id, enabled)
+        log.debug("obs.item_enabled_set", scene=scene_or_group, item_id=item_id, enabled=enabled)
+
+    def get_item_id(self, scene_or_group: str, source_name: str) -> int:
+        """Look up a scene item's ID by source name."""
+        c = self._connect()
+        result = c.get_scene_item_id(scene_or_group, source_name)
+        return result.scene_item_id

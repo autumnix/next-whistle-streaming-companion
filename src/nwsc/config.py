@@ -50,6 +50,7 @@ class OBSConfig(BaseModel):
     replay_length_s: float = 8.0
     replay_pad_s: float = 0.25
     transition: OBSTransitionConfig = Field(default_factory=OBSTransitionConfig)
+    overlay_groups: list[str] = Field(default_factory=list)
 
 
 class PTZCameraConfig(BaseModel):

@@ -19,7 +19,8 @@ from nwsc.integrations.obs.client import OBSClient
 from nwsc.integrations.ptz.client import PTZClient
 from nwsc.integrations.scoreboard.client import ScoreboardClient
 from nwsc.logging import setup_logging
-from nwsc.routers import clips, dashboard, game, health, obs, ptz, workflows
+from nwsc.domain.overlay import OverlayService
+from nwsc.routers import clips, dashboard, game, health, obs, overlays, ptz, workflows
 from nwsc.services.health_monitor import HealthMonitor
 from nwsc.services.replay_file import ReplayFileService
 
@@ -85,9 +86,12 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
     clip_svc = ClipService(repo, scoreboard_client, replay_file_svc)
     jam_cycle = JamCycleOrchestrator(obs_client, ptz_client, bout_svc, clip_svc, config)
 
+    overlay_svc = OverlayService(obs_client, allowed_groups=config.obs.overlay_groups or None)
+
     app.state.bout_svc = bout_svc
     app.state.clip_svc = clip_svc
     app.state.jam_cycle = jam_cycle
+    app.state.overlay_svc = overlay_svc
 
     # Health monitor
     integrations = [obs_client, ptz_client, scoreboard_client]  # type: ignore[list-item]
@@ -100,6 +104,7 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
     app.include_router(obs.router, prefix="/obs", tags=["OBS"])
     app.include_router(ptz.router, prefix="/ptz", tags=["PTZ"])
     app.include_router(workflows.router, prefix="/workflow", tags=["Workflows"])
+    app.include_router(overlays.router, prefix="/overlay", tags=["Overlays"])
     app.include_router(health.router, tags=["Health"])
     app.include_router(dashboard.router, prefix="/dashboard", tags=["Dashboard"])
 
