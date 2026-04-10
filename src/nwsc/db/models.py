@@ -86,3 +86,29 @@ class StatusResponse(BaseModel):
     jam: int | None = None
     integrations: dict[str, IntegrationHealthResponse] = {}
     recent_clips: list[ClipRow] = []
+
+
+# --- Overlay models ---
+
+
+class OverlaySourceModel(BaseModel):
+    name: str
+    enabled: bool
+    item_id: int
+
+
+class OverlayActionResponse(BaseModel):
+    group: str
+    source: str
+    enabled: bool
+    timeout_s: float | None = None
+
+
+class OverlayGroupResponse(BaseModel):
+    group: str
+    sources: list[OverlaySourceModel]
+
+
+class OverlayHideAllResponse(BaseModel):
+    group: str
+    sources: list[OverlaySourceModel]
