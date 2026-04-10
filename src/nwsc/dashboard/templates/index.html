@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Status{% endblock %}
+
+{% block content %}
+<div class="status-page">
+    <section class="card" id="game-state">
+        <h2>Game State</h2>
+        <div class="stats">
+            <div class="stat">
+                <span class="label">Game</span>
+                <span class="value" id="game-id">--</span>
+            </div>
+            <div class="stat">
+                <span class="label">Period</span>
+                <span class="value" id="period">--</span>
+            </div>
+            <div class="stat">
+                <span class="label">Jam</span>
+                <span class="value" id="jam">--</span>
+            </div>
+        </div>
+    </section>
+
+    <section class="card" id="integrations">
+        <h2>Integrations</h2>
+        <div id="integration-list">
+            <p class="loading">Loading...</p>
+        </div>
+    </section>
+
+    <section class="card" id="recent-clips">
+        <h2>Recent Clips</h2>
+        <table id="clips-table">
+            <thead>
+                <tr>
+                    <th>Period</th>
+                    <th>Jam</th>
+                    <th>Status</th>
+                    <th>Path</th>
+                    <th>Time</th>
+                </tr>
+            </thead>
+            <tbody id="clips-body">
+                <tr><td colspan="5" class="loading">Loading...</td></tr>
+            </tbody>
+        </table>
+    </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/app.js"></script>
+{% endblock %}

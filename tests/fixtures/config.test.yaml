@@ -1,0 +1,48 @@
+server:
+  host: "127.0.0.1"
+  port: 8787
+  log_level: "debug"
+
+database:
+  path: ":memory:"
+
+recordings:
+  base_path: /tmp/nwsc-test/recordings
+  extensions: [".mkv", ".mp4", ".mov"]
+  file_stabilize_timeout_s: 1.0
+  file_stabilize_poll_s: 0.05
+
+obs:
+  host: "127.0.0.1"
+  port: 4455
+  password: "testpass"
+  timeout_s: 2
+  scenes:
+    cam1: "CAM1"
+    cam2: "CAM2"
+    replay: "REPLAY"
+    safe: "BUMPER"
+  media_input_name: "REPLAY_MEDIA"
+  replay_length_s: 2.0
+  replay_pad_s: 0.1
+  transition:
+    name: "Fade"
+    duration_ms: 100
+
+ptz:
+  cameras:
+    cam1:
+      host: "192.168.1.10"
+    cam2:
+      host: "192.168.1.11"
+  url_template: "http://{host}/cgi-bin/ptzctrl.cgi?ptzcmd&poscall&{preset}"
+  timeout_s: 1
+  jam_start_preset: 0
+  settle_s: 0.1
+
+scoreboard:
+  url: "ws://localhost:8000/WS/"
+  ping_interval_s: 20
+  ping_timeout_s: 20
+  reconnect_delay_s: 1
+  prime_timeout_s: 1.0

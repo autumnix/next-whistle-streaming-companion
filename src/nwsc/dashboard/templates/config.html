@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Config{% endblock %}
+
+{% block content %}
+<div class="config-page">
+    <section class="card">
+        <h2>Current Configuration</h2>
+        <p class="note">Read-only view. Edit config.yaml to change settings.</p>
+
+        <h3>Server</h3>
+        <table class="config-table">
+            <tr><td>Host</td><td>{{ config.server.host }}</td></tr>
+            <tr><td>Port</td><td>{{ config.server.port }}</td></tr>
+            <tr><td>Log Level</td><td>{{ config.server.log_level }}</td></tr>
+        </table>
+
+        <h3>Database</h3>
+        <table class="config-table">
+            <tr><td>Path</td><td>{{ config.database.path }}</td></tr>
+        </table>
+
+        <h3>Recordings</h3>
+        <table class="config-table">
+            <tr><td>Base Path</td><td>{{ config.recordings.base_path }}</td></tr>
+            <tr><td>Override</td><td>{{ config.recordings.replay_dir_override or "auto-detect" }}</td></tr>
+            <tr><td>Extensions</td><td>{{ config.recordings.extensions | join(", ") }}</td></tr>
+        </table>
+
+        <h3>OBS</h3>
+        <table class="config-table">
+            <tr><td>Host</td><td>{{ config.obs.host }}:{{ config.obs.port }}</td></tr>
+            <tr><td>Password</td><td>{{ "***" if config.obs.password else "(none)" }}</td></tr>
+            <tr><td>Scenes</td><td>cam1={{ config.obs.scenes.cam1 }}, cam2={{ config.obs.scenes.cam2 }}, replay={{ config.obs.scenes.replay }}, safe={{ config.obs.scenes.safe }}</td></tr>
+            <tr><td>Media Input</td><td>{{ config.obs.media_input_name }}</td></tr>
+            <tr><td>Replay Length</td><td>{{ config.obs.replay_length_s }}s + {{ config.obs.replay_pad_s }}s pad</td></tr>
+            <tr><td>Transition</td><td>{{ config.obs.transition.name }} ({{ config.obs.transition.duration_ms }}ms)</td></tr>
+        </table>
+
+        <h3>PTZ Cameras</h3>
+        <table class="config-table">
+            {% for cam_id, cam in config.ptz.cameras.items() %}
+            <tr><td>{{ cam_id }}</td><td>{{ cam.host }}</td></tr>
+            {% endfor %}
+            <tr><td>Jam Start Preset</td><td>{{ config.ptz.jam_start_preset }}</td></tr>
+            <tr><td>Settle Time</td><td>{{ config.ptz.settle_s }}s</td></tr>
+        </table>
+
+        <h3>Scoreboard</h3>
+        <table class="config-table">
+            <tr><td>URL</td><td>{{ config.scoreboard.url }}</td></tr>
+            <tr><td>Reconnect Delay</td><td>{{ config.scoreboard.reconnect_delay_s }}s</td></tr>
+        </table>
+    </section>
+</div>
+{% endblock %}
