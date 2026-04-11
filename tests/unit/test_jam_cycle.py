@@ -64,20 +64,11 @@ class TestJamResetAndPlay:
     async def test_with_replay(
         self,
         jam_cycle: JamCycleOrchestrator,
-        bout_svc: BoutService,
-        clip_svc: ClipService,
         mock_obs: MagicMock,
         mock_ptz: MagicMock,
-        tmp_path: Path,
     ):
-        # Setup replay file
-        replay_dir = tmp_path / "replays"
-        replay_dir.mkdir()
-        (replay_dir / "replay.mkv").write_bytes(b"x" * 100)
-        clip_svc._replay_file._config.replay_dir_override = str(replay_dir)
-
-        await bout_svc.ensure_game_row("test-game-1")
-        await clip_svc.arm_latest("test-game-1")
+        # Simulate a clip being armed (loaded into REPLAY_MEDIA)
+        mock_obs.has_media_loaded.return_value = True
 
         resp = await jam_cycle.jam_reset_and_play()
 
@@ -85,19 +76,19 @@ class TestJamResetAndPlay:
         mock_obs.set_scene.assert_called_with("REPLAY")
         # Should call PTZ
         mock_ptz.call_preset_all.assert_called_with(0)
-        # Should load and play media
-        mock_obs.load_and_play_media.assert_called_once()
+        # Should show and play media
+        mock_obs.show_and_play_media.assert_called_once_with("REPLAY")
         # Should have a play path
         assert resp.play_path is not None
 
     async def test_without_replay(
         self,
         jam_cycle: JamCycleOrchestrator,
-        bout_svc: BoutService,
         mock_obs: MagicMock,
         mock_ptz: MagicMock,
     ):
-        await bout_svc.ensure_game_row("test-game-1")
+        mock_obs.has_media_loaded.return_value = False
+
         resp = await jam_cycle.jam_reset_and_play()
 
         # Should switch to safe scene (no replay available)
@@ -108,12 +99,11 @@ class TestJamResetAndPlay:
     async def test_ptz_failure_does_not_block(
         self,
         jam_cycle: JamCycleOrchestrator,
-        bout_svc: BoutService,
         mock_obs: MagicMock,
         mock_ptz: MagicMock,
     ):
         mock_ptz.call_preset_all.side_effect = ConnectionError("PTZ unreachable")
-        await bout_svc.ensure_game_row("test-game-1")
+        mock_obs.has_media_loaded.return_value = False
 
         # Should not raise despite PTZ failure
         resp = await jam_cycle.jam_reset_and_play()
@@ -144,8 +134,9 @@ class TestNoGameResilience:
         mock_ptz: MagicMock,
         mock_scoreboard: MagicMock,
     ):
-        """Falls through to safe scene when scoreboard has no game."""
+        """Falls through to safe scene when no media is loaded."""
         mock_scoreboard._game_id = None
+        mock_obs.has_media_loaded.return_value = False
         resp = await jam_cycle.jam_reset_and_play()
 
         mock_obs.set_scene.assert_called_with("BUMPER")
@@ -205,14 +196,13 @@ class TestScoreboardResilience:
     async def test_jam_reset_and_play_degrades_when_scoreboard_down(
         self,
         jam_cycle: JamCycleOrchestrator,
-        bout_svc: BoutService,
         mock_obs: MagicMock,
         mock_ptz: MagicMock,
         mock_scoreboard: MagicMock,
     ):
-        """When scoreboard is down, jam_reset_and_play treats it as 'no replay'."""
+        """When scoreboard is down, jam_reset_and_play still works with no media."""
         mock_scoreboard.get_state_or_last.side_effect = RuntimeError("scoreboard down")
-        await bout_svc.ensure_game_row("test-game-1")
+        mock_obs.has_media_loaded.return_value = False
 
         resp = await jam_cycle.jam_reset_and_play()
 
@@ -240,5 +230,7 @@ class TestSaveAndArm:
         resp = await jam_cycle.save_and_arm()
 
         mock_obs.save_replay_buffer.assert_called_once()
+        # Should load into REPLAY_MEDIA (hidden)
+        mock_obs.load_media.assert_called_once()
         assert resp.period == 1
         assert resp.jam == 3

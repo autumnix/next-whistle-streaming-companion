@@ -49,12 +49,11 @@ class TestOBSClient:
             obs.save_replay_buffer()
             mock_req_client.save_replay_buffer.assert_called_once()
 
-    def test_load_and_play_media(self, obs_config: OBSConfig, mock_req_client: MagicMock):
+    def test_load_media(self, obs_config: OBSConfig, mock_req_client: MagicMock):
         obs = OBSClient(obs_config)
         with patch.object(obs, "_connect", return_value=mock_req_client):
-            obs.load_and_play_media("/path/to/replay.mkv")
+            obs.load_media("/path/to/replay.mkv")
             mock_req_client.set_input_settings.assert_called_once()
-            mock_req_client.trigger_media_input_action.assert_called_once()
 
     def test_transition_to_scene(self, obs_config: OBSConfig, mock_req_client: MagicMock):
         obs = OBSClient(obs_config)

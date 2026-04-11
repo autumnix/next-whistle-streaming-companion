@@ -117,10 +117,10 @@ class OBSClient:
         c.save_replay_buffer()
         log.info("obs.replay_buffer_saved")
 
-    def load_and_play_media(
+    def load_media(
         self, file_path: str, scene_name: str | None = None, input_name: str | None = None
     ) -> None:
-        """Load a file into the media source, ensure it's visible, and restart playback."""
+        """Load a file into the media source and hide it (arm without playing)."""
         media = input_name or self._config.media_input_name
         c = self._connect()
         c.set_input_settings(
@@ -129,29 +129,62 @@ class OBSClient:
             overlay=True,
         )
 
-        # Ensure the media source is visible in the scene
+        # Hide so it doesn't show stale frames when switching to the replay scene
         if scene_name:
             try:
                 item_id = c.get_scene_item_id(scene_name, media).scene_item_id
-                c.set_scene_item_enabled(scene_name, item_id, True)
+                c.set_scene_item_enabled(scene_name, item_id, False)
             except Exception as e:
-                log.warning("obs.media_show_failed", scene=scene_name, error=str(e))
+                log.warning("obs.media_hide_failed", scene=scene_name, error=str(e))
+
+        log.info("obs.media_loaded", input=media, path=file_path)
+
+    def show_and_play_media(
+        self, scene_name: str, input_name: str | None = None
+    ) -> None:
+        """Show the media source in the scene and restart playback."""
+        media = input_name or self._config.media_input_name
+        c = self._connect()
+
+        try:
+            item_id = c.get_scene_item_id(scene_name, media).scene_item_id
+            c.set_scene_item_enabled(scene_name, item_id, True)
+        except Exception as e:
+            log.warning("obs.media_show_failed", scene=scene_name, error=str(e))
 
         c.trigger_media_input_action(
             media, "OBS_WEBSOCKET_MEDIA_INPUT_ACTION_RESTART"
         )
-        log.info("obs.media_started", input=media, path=file_path)
+        log.info("obs.media_playing", input=media, scene=scene_name)
 
-    def hide_media_source(self, scene_name: str, input_name: str | None = None) -> None:
-        """Hide the media source in the given scene to prevent stale frames."""
+    def hide_and_unload_media(
+        self, scene_name: str, input_name: str | None = None
+    ) -> None:
+        """Hide the media source and clear its file so it can't be replayed."""
         media = input_name or self._config.media_input_name
         try:
             c = self._connect()
             item_id = c.get_scene_item_id(scene_name, media).scene_item_id
             c.set_scene_item_enabled(scene_name, item_id, False)
-            log.debug("obs.media_hidden", scene=scene_name, source=media)
+            c.set_input_settings(
+                name=media,
+                settings={"local_file": ""},
+                overlay=True,
+            )
+            log.info("obs.media_unloaded", scene=scene_name, source=media)
         except Exception as e:
-            log.warning("obs.media_hide_failed", scene=scene_name, error=str(e))
+            log.warning("obs.media_unload_failed", scene=scene_name, error=str(e))
+
+    def has_media_loaded(self, input_name: str | None = None) -> bool:
+        """Check if the media source has a file loaded."""
+        media = input_name or self._config.media_input_name
+        try:
+            c = self._connect()
+            settings = c.get_input_settings(media)
+            local_file = settings.input_settings.get("local_file", "")
+            return bool(local_file)
+        except Exception:
+            return False
 
     def get_media_status(self, input_name: str | None = None) -> MediaStatus:
         """Get playback status of the media source."""

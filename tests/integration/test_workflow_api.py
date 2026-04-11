@@ -66,14 +66,14 @@ class TestJamResetAndPlay:
         assert resp.status_code == 200
         data = resp.json()
         assert data["play_path"] is None
-        mock_obs.set_scene.assert_called_with("BUMPER")
+        mock_obs.set_scene.assert_any_call("BUMPER")
 
     def test_no_replay(self, client: TestClient, mock_obs: MagicMock):
         resp = client.post("/workflow/jam-reset-and-play")
         assert resp.status_code == 200
         data = resp.json()
         assert data["play_path"] is None
-        mock_obs.set_scene.assert_called_with("BUMPER")
+        mock_obs.set_scene.assert_any_call("BUMPER")
 
 
 class TestBackwardCompatRoutes:

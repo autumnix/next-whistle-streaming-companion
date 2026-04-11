@@ -47,7 +47,10 @@ def mock_obs(app_config: AppConfig) -> MagicMock:
     obs.get_current_scene.return_value = "CAM1"
     obs.set_scene.return_value = "CAM1"
     obs.save_replay_buffer.return_value = None
-    obs.load_and_play_media.return_value = None
+    obs.load_media.return_value = None
+    obs.show_and_play_media.return_value = None
+    obs.hide_and_unload_media.return_value = None
+    obs.has_media_loaded.return_value = False
     return obs
 
 
