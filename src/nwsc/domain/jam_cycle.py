@@ -41,7 +41,7 @@ class JamCycleOrchestrator:
         self._delayed_switch_task: asyncio.Task[None] | None = None
 
     async def save_and_arm(self) -> ArmResponse:
-        """Save the OBS replay buffer and arm the clip."""
+        """Save the OBS replay buffer, load the clip into REPLAY_MEDIA (hidden)."""
         game_id = self._bout.require_current_game()
         await self._bout.ensure_game_row(game_id)
 
@@ -49,6 +49,11 @@ class JamCycleOrchestrator:
         await asyncio.sleep(0.5)  # Give OBS time to write the file
 
         result = await self._clip.arm_latest(game_id)
+
+        # Load into REPLAY_MEDIA (hidden) so it's ready for jam-reset-and-play
+        replay_scene = self._config.obs.scenes.replay
+        self._obs.load_media(result.path, scene_name=replay_scene)
+
         return ArmResponse(
             game_id=result.game_id,
             period=result.period,
@@ -93,39 +98,20 @@ class JamCycleOrchestrator:
         )
 
     async def jam_reset_and_play(self) -> JamResetResponse:
-        """Jam reset with replay: play the highlight, then switch back to cam1.
+        """Jam reset with replay: show and play the armed clip, then switch back.
 
-        Orchestration:
-        1. Consume the armed clip for the current jam
-        2. If replay exists:
-           - Switch to REPLAY scene
-           - Call PTZ preset (hidden behind replay)
-           - Load and play the replay media
-           - Schedule delayed switch back to cam1
-        3. If no replay:
-           - Switch to safe/bumper scene
-           - Call PTZ preset
-           - Schedule delayed switch back to cam1
+        The clip was already loaded into REPLAY_MEDIA (hidden) by save_and_arm.
+        This just shows it, plays it, and after the delay hides + unloads it.
         """
-        # Consume clip — if no game or scoreboard/DB fails, treat as "no replay"
-        result = None
-        try:
-            game_id = self._bout.get_current_game_id()
-            if game_id:
-                await self._bout.ensure_game_row(game_id)
-                result = await self._clip.consume_for_jam(game_id)
-            else:
-                log.info("jam_reset_and_play.no_active_game")
-        except Exception as e:
-            log.warning("jam_reset_and_play.clip_consume_failed", error=str(e))
-
         cam1 = self._config.obs.scenes.cam1
         replay_scene = self._config.obs.scenes.replay
         safe_scene = self._config.obs.scenes.safe
         preset = self._config.ptz.jam_start_preset
 
-        if result and result.play_path:
-            # Replay exists: cut to replay scene
+        has_replay = self._obs.has_media_loaded()
+
+        if has_replay:
+            # Replay is armed: cut to replay scene, show and play
             self._obs.set_scene(replay_scene)
 
             # PTZ movement hidden behind replay
@@ -134,20 +120,15 @@ class JamCycleOrchestrator:
             except Exception as e:
                 log.warning("jam_reset_and_play.ptz_failed", error=str(e))
 
-            # Load and play the replay (ensure source is visible)
-            self._obs.load_and_play_media(result.play_path, scene_name=replay_scene)
+            self._obs.show_and_play_media(replay_scene)
 
-            # Schedule switch back to cam1 after replay finishes
+            # Schedule switch back to cam1; hide + unload after
             delay = self._config.obs.replay_length_s + self._config.obs.replay_pad_s
-            self._schedule_delayed_switch(cam1, delay, hide_media_scene=replay_scene)
+            self._schedule_delayed_switch(cam1, delay, unload_media_scene=replay_scene)
 
-            log.info(
-                "jam_reset_and_play.replay_started",
-                path=result.play_path,
-                switch_back_in=delay,
-            )
+            log.info("jam_reset_and_play.replay_started", switch_back_in=delay)
         else:
-            # No replay: go to safe scene while PTZ moves
+            # No replay armed: go to safe scene while PTZ moves
             self._obs.set_scene(safe_scene)
 
             try:
@@ -155,39 +136,45 @@ class JamCycleOrchestrator:
             except Exception as e:
                 log.warning("jam_reset_and_play.ptz_failed", error=str(e))
 
-            # Switch back to cam1 after PTZ settles
             self._schedule_delayed_switch(cam1, self._config.ptz.settle_s)
 
             log.info("jam_reset_and_play.no_replay", switch_back_in=self._config.ptz.settle_s)
 
+        # Get scoreboard state for the response
+        try:
+            state = await self._clip._scoreboard.get_state_or_last()
+            period, jam = state.period, state.jam
+        except Exception:
+            period, jam = 0, 0
+
         return JamResetResponse(
-            current_period=result.current_period if result else 0,
-            current_jam=result.current_jam if result else 0,
-            previous_period=result.current_period if result else 0,
-            previous_jam=result.current_jam if result else 0,
-            play_path=result.play_path if result else None,
+            current_period=period,
+            current_jam=jam,
+            previous_period=period,
+            previous_jam=jam,
+            play_path="(armed)" if has_replay else None,
         )
 
     def _schedule_delayed_switch(
-        self, scene: str, delay_s: float, hide_media_scene: str | None = None
+        self, scene: str, delay_s: float, unload_media_scene: str | None = None
     ) -> None:
         """Schedule a delayed scene switch, cancelling any pending one."""
         if self._delayed_switch_task and not self._delayed_switch_task.done():
             self._delayed_switch_task.cancel()
 
         self._delayed_switch_task = asyncio.create_task(
-            self._delayed_switch(scene, delay_s, hide_media_scene)
+            self._delayed_switch(scene, delay_s, unload_media_scene)
         )
 
     async def _delayed_switch(
-        self, scene: str, delay_s: float, hide_media_scene: str | None = None
+        self, scene: str, delay_s: float, unload_media_scene: str | None = None
     ) -> None:
-        """Wait, switch OBS scene, then hide the media source to prevent stale frames."""
+        """Wait, switch OBS scene, then hide + unload the media source."""
         try:
             await asyncio.sleep(max(0.0, delay_s))
             self._obs.set_scene(scene)
-            if hide_media_scene:
-                self._obs.hide_media_source(hide_media_scene)
+            if unload_media_scene:
+                self._obs.hide_and_unload_media(unload_media_scene)
             log.info("jam_cycle.delayed_switch_complete", scene=scene)
         except asyncio.CancelledError:
             log.debug("jam_cycle.delayed_switch_cancelled", scene=scene)
