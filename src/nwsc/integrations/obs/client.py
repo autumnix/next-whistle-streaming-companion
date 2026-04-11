@@ -117,8 +117,10 @@ class OBSClient:
         c.save_replay_buffer()
         log.info("obs.replay_buffer_saved")
 
-    def load_and_play_media(self, file_path: str, input_name: str | None = None) -> None:
-        """Load a file into the media source and restart playback."""
+    def load_and_play_media(
+        self, file_path: str, scene_name: str | None = None, input_name: str | None = None
+    ) -> None:
+        """Load a file into the media source, ensure it's visible, and restart playback."""
         media = input_name or self._config.media_input_name
         c = self._connect()
         c.set_input_settings(
@@ -126,10 +128,30 @@ class OBSClient:
             settings={"local_file": file_path},
             overlay=True,
         )
+
+        # Ensure the media source is visible in the scene
+        if scene_name:
+            try:
+                item_id = c.get_scene_item_id(scene_name, media).scene_item_id
+                c.set_scene_item_enabled(scene_name, item_id, True)
+            except Exception as e:
+                log.warning("obs.media_show_failed", scene=scene_name, error=str(e))
+
         c.trigger_media_input_action(
             media, "OBS_WEBSOCKET_MEDIA_INPUT_ACTION_RESTART"
         )
         log.info("obs.media_started", input=media, path=file_path)
+
+    def hide_media_source(self, scene_name: str, input_name: str | None = None) -> None:
+        """Hide the media source in the given scene to prevent stale frames."""
+        media = input_name or self._config.media_input_name
+        try:
+            c = self._connect()
+            item_id = c.get_scene_item_id(scene_name, media).scene_item_id
+            c.set_scene_item_enabled(scene_name, item_id, False)
+            log.debug("obs.media_hidden", scene=scene_name, source=media)
+        except Exception as e:
+            log.warning("obs.media_hide_failed", scene=scene_name, error=str(e))
 
     def get_media_status(self, input_name: str | None = None) -> MediaStatus:
         """Get playback status of the media source."""

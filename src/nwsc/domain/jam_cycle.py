@@ -134,12 +134,12 @@ class JamCycleOrchestrator:
             except Exception as e:
                 log.warning("jam_reset_and_play.ptz_failed", error=str(e))
 
-            # Load and play the replay
-            self._obs.load_and_play_media(result.play_path)
+            # Load and play the replay (ensure source is visible)
+            self._obs.load_and_play_media(result.play_path, scene_name=replay_scene)
 
             # Schedule switch back to cam1 after replay finishes
             delay = self._config.obs.replay_length_s + self._config.obs.replay_pad_s
-            self._schedule_delayed_switch(cam1, delay)
+            self._schedule_delayed_switch(cam1, delay, hide_media_scene=replay_scene)
 
             log.info(
                 "jam_reset_and_play.replay_started",
@@ -168,20 +168,26 @@ class JamCycleOrchestrator:
             play_path=result.play_path if result else None,
         )
 
-    def _schedule_delayed_switch(self, scene: str, delay_s: float) -> None:
+    def _schedule_delayed_switch(
+        self, scene: str, delay_s: float, hide_media_scene: str | None = None
+    ) -> None:
         """Schedule a delayed scene switch, cancelling any pending one."""
         if self._delayed_switch_task and not self._delayed_switch_task.done():
             self._delayed_switch_task.cancel()
 
         self._delayed_switch_task = asyncio.create_task(
-            self._delayed_switch(scene, delay_s)
+            self._delayed_switch(scene, delay_s, hide_media_scene)
         )
 
-    async def _delayed_switch(self, scene: str, delay_s: float) -> None:
-        """Wait then switch OBS scene."""
+    async def _delayed_switch(
+        self, scene: str, delay_s: float, hide_media_scene: str | None = None
+    ) -> None:
+        """Wait, switch OBS scene, then hide the media source to prevent stale frames."""
         try:
             await asyncio.sleep(max(0.0, delay_s))
             self._obs.set_scene(scene)
+            if hide_media_scene:
+                self._obs.hide_media_source(hide_media_scene)
             log.info("jam_cycle.delayed_switch_complete", scene=scene)
         except asyncio.CancelledError:
             log.debug("jam_cycle.delayed_switch_cancelled", scene=scene)
