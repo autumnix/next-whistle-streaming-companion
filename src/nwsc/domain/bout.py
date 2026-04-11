@@ -1,43 +1,38 @@
-"""Bout (game) lifecycle management."""
+"""Bout (game) lifecycle management — backed by the CRG scoreboard."""
 
 from __future__ import annotations
-
-import time
-import uuid
 
 import structlog
 
 from nwsc.db.repository import Repository
+from nwsc.integrations.scoreboard.client import ScoreboardClient
 
 log = structlog.get_logger()
 
 
 class BoutService:
-    """Manages the lifecycle of a roller derby bout/game."""
+    """Provides game_id from the CRG scoreboard and ensures DB rows exist."""
 
-    def __init__(self, repo: Repository) -> None:
+    def __init__(self, repo: Repository, scoreboard: ScoreboardClient) -> None:
         self._repo = repo
+        self._scoreboard = scoreboard
 
-    async def start_game(self) -> str:
-        """Create a new game and set it as the current active game.
+    def get_current_game_id(self) -> str | None:
+        """Return the current game_id from the scoreboard, or None."""
+        return self._scoreboard._game_id
 
-        Returns the new game_id.
-        """
-        game_id = f"game-{int(time.time() * 1000)}-{uuid.uuid4().hex[:6]}"
-        await self._repo.create_game(game_id)
-        log.info("bout.started", game_id=game_id)
-        return game_id
-
-    async def get_current_game_id(self) -> str | None:
-        """Return the current active game_id, or None."""
-        return await self._repo.get_current_game_id()
-
-    async def require_current_game(self) -> str:
-        """Return the current game_id or raise if none is active."""
-        game_id = await self.get_current_game_id()
+    def require_current_game(self) -> str:
+        """Return the current game_id or raise if the scoreboard has none."""
+        game_id = self.get_current_game_id()
         if not game_id:
-            raise NoActiveGameError("No active game. Call /game/start first.")
+            raise NoActiveGameError(
+                "No active game on scoreboard. Is the scoreboard connected?"
+            )
         return game_id
+
+    async def ensure_game_row(self, game_id: str) -> None:
+        """Ensure the games table has a row for this game_id (idempotent)."""
+        await self._repo.ensure_game(game_id)
 
 
 class NoActiveGameError(Exception):

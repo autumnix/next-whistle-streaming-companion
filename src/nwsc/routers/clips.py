@@ -20,7 +20,7 @@ async def arm_latest(
 ) -> ArmResponse:
     """Arm the newest replay file as the highlight for the current jam."""
     try:
-        game_id = await bout_svc.require_current_game()
+        game_id = bout_svc.require_current_game()
     except NoActiveGameError as e:
         raise HTTPException(status_code=409, detail=str(e))
 
@@ -45,7 +45,7 @@ async def clip_history(
     repo: Repository = Depends(get_repo),
 ) -> list[ClipRow]:
     """List recent clips for the current game."""
-    game_id = await bout_svc.get_current_game_id()
+    game_id = bout_svc.get_current_game_id()
     if not game_id:
         return []
     return await repo.get_recent_clips(game_id)

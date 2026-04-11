@@ -45,7 +45,7 @@ async def status(
     monitor: HealthMonitor = Depends(get_health_monitor),
 ) -> StatusResponse:
     """Combined status: game state, connections, recent clips."""
-    game_id = await bout_svc.get_current_game_id()
+    game_id = bout_svc.get_current_game_id()
 
     period = None
     jam = None

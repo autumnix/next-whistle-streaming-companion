@@ -36,7 +36,7 @@ class TestJamReset:
     async def test_jam_reset_switches_to_cam1(
         self, jam_cycle: JamCycleOrchestrator, bout_svc: BoutService, mock_obs: MagicMock
     ):
-        await bout_svc.start_game()
+        await bout_svc.ensure_game_row("test-game-1")
         await jam_cycle.jam_reset()
 
         mock_obs.set_scene.assert_called_with("CAM1")
@@ -44,7 +44,7 @@ class TestJamReset:
     async def test_jam_reset_calls_ptz_preset(
         self, jam_cycle: JamCycleOrchestrator, bout_svc: BoutService, mock_ptz: MagicMock
     ):
-        await bout_svc.start_game()
+        await bout_svc.ensure_game_row("test-game-1")
         await jam_cycle.jam_reset()
 
         mock_ptz.call_preset_all.assert_called_with(0)
@@ -52,7 +52,7 @@ class TestJamReset:
     async def test_jam_reset_returns_response(
         self, jam_cycle: JamCycleOrchestrator, bout_svc: BoutService
     ):
-        await bout_svc.start_game()
+        await bout_svc.ensure_game_row("test-game-1")
         resp = await jam_cycle.jam_reset()
 
         assert resp.current_period == 1
@@ -76,8 +76,8 @@ class TestJamResetAndPlay:
         (replay_dir / "replay.mkv").write_bytes(b"x" * 100)
         clip_svc._replay_file._config.replay_dir_override = str(replay_dir)
 
-        game_id = await bout_svc.start_game()
-        await clip_svc.arm_latest(game_id)
+        await bout_svc.ensure_game_row("test-game-1")
+        await clip_svc.arm_latest("test-game-1")
 
         resp = await jam_cycle.jam_reset_and_play()
 
@@ -97,7 +97,7 @@ class TestJamResetAndPlay:
         mock_obs: MagicMock,
         mock_ptz: MagicMock,
     ):
-        await bout_svc.start_game()
+        await bout_svc.ensure_game_row("test-game-1")
         resp = await jam_cycle.jam_reset_and_play()
 
         # Should switch to safe scene (no replay available)
@@ -113,7 +113,7 @@ class TestJamResetAndPlay:
         mock_ptz: MagicMock,
     ):
         mock_ptz.call_preset_all.side_effect = ConnectionError("PTZ unreachable")
-        await bout_svc.start_game()
+        await bout_svc.ensure_game_row("test-game-1")
 
         # Should not raise despite PTZ failure
         resp = await jam_cycle.jam_reset_and_play()
@@ -126,8 +126,10 @@ class TestNoGameResilience:
         jam_cycle: JamCycleOrchestrator,
         mock_obs: MagicMock,
         mock_ptz: MagicMock,
+        mock_scoreboard: MagicMock,
     ):
-        """OBS and PTZ work even when no game has been started."""
+        """OBS and PTZ work even when scoreboard has no game."""
+        mock_scoreboard._game_id = None
         resp = await jam_cycle.jam_reset()
 
         mock_obs.set_scene.assert_called_with("CAM1")
@@ -140,8 +142,10 @@ class TestNoGameResilience:
         jam_cycle: JamCycleOrchestrator,
         mock_obs: MagicMock,
         mock_ptz: MagicMock,
+        mock_scoreboard: MagicMock,
     ):
-        """Falls through to safe scene when no game is active."""
+        """Falls through to safe scene when scoreboard has no game."""
+        mock_scoreboard._game_id = None
         resp = await jam_cycle.jam_reset_and_play()
 
         mock_obs.set_scene.assert_called_with("BUMPER")
@@ -160,7 +164,7 @@ class TestScoreboardResilience:
     ):
         """OBS and PTZ should work even if scoreboard is completely unreachable."""
         mock_scoreboard.get_state_or_last.side_effect = RuntimeError("scoreboard down")
-        await bout_svc.start_game()
+        await bout_svc.ensure_game_row("test-game-1")
 
         resp = await jam_cycle.jam_reset()
 
@@ -192,7 +196,7 @@ class TestScoreboardResilience:
 
         jam_cycle._clip.consume_for_jam = tracked_consume
 
-        await bout_svc.start_game()
+        await bout_svc.ensure_game_row("test-game-1")
         await jam_cycle.jam_reset()
 
         assert call_order.index("obs") < call_order.index("clip")
@@ -208,7 +212,7 @@ class TestScoreboardResilience:
     ):
         """When scoreboard is down, jam_reset_and_play treats it as 'no replay'."""
         mock_scoreboard.get_state_or_last.side_effect = RuntimeError("scoreboard down")
-        await bout_svc.start_game()
+        await bout_svc.ensure_game_row("test-game-1")
 
         resp = await jam_cycle.jam_reset_and_play()
 
@@ -232,7 +236,7 @@ class TestSaveAndArm:
         (replay_dir / "replay.mkv").write_bytes(b"x" * 100)
         clip_svc._replay_file._config.replay_dir_override = str(replay_dir)
 
-        await bout_svc.start_game()
+        await bout_svc.ensure_game_row("test-game-1")
         resp = await jam_cycle.save_and_arm()
 
         mock_obs.save_replay_buffer.assert_called_once()

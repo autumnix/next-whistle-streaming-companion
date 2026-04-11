@@ -30,12 +30,14 @@ class PTZClient:
         return list(self._config.cameras.keys())
 
     async def health_check(self) -> HealthStatus:
-        """Check reachability of all cameras."""
+        """Check reachability of all cameras (read-only, no state changes)."""
         start = time.monotonic()
         errors: list[str] = []
         for cam_id, cam in self._config.cameras.items():
             try:
-                url = self._preset_url(cam.host, 0)
+                # Just hit the root page to verify the camera is reachable.
+                # Never call a preset URL — that moves the camera.
+                url = f"http://{cam.host}/"
                 resp = await self._http.get(url)
                 resp.raise_for_status()
             except Exception as e:
