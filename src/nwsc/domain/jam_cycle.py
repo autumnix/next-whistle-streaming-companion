@@ -45,10 +45,19 @@ class JamCycleOrchestrator:
         game_id = self._bout.require_current_game()
         await self._bout.ensure_game_row(game_id)
 
-        self._obs.save_replay_buffer()
-        await asyncio.sleep(0.5)  # Give OBS time to write the file
+        # Snapshot existing files so we can detect the new one
+        replay_dir = self._clip._replay_file.resolve_replay_dir()
+        old_newest = self._clip._replay_file.newest_replay_file(replay_dir)
 
-        result = await self._clip.arm_latest(game_id)
+        self._obs.save_replay_buffer()
+
+        # Wait for a new file to appear (not the one that was already there)
+        new_file = await self._clip._replay_file.wait_for_new_file(
+            replay_dir, old_newest
+        )
+        log.info("save_and_arm.new_file_detected", path=str(new_file))
+
+        result = await self._clip.arm_file(game_id, new_file)
 
         # Load into REPLAY_MEDIA (hidden) so it's ready for jam-reset-and-play
         replay_scene = self._config.obs.scenes.replay
