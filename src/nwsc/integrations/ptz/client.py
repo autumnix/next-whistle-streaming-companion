@@ -37,9 +37,11 @@ class PTZClient:
             try:
                 # Just hit the root page to verify the camera is reachable.
                 # Never call a preset URL — that moves the camera.
+                # Any HTTP response (even 401) means the camera is up.
                 url = f"http://{cam.host}/"
-                resp = await self._http.get(url)
-                resp.raise_for_status()
+                await self._http.get(url)
+            except httpx.HTTPStatusError:
+                pass  # Got a response — camera is reachable
             except Exception as e:
                 errors.append(f"{cam_id}: {e}")
         latency = (time.monotonic() - start) * 1000
