@@ -22,7 +22,8 @@ class TestClipService:
         # Point the service at our temp dir
         clip_svc._replay_file._config.replay_dir_override = str(replay_dir)
 
-        game_id = await bout_svc.start_game()
+        await bout_svc.ensure_game_row("test-game-1")
+        game_id = "test-game-1"
         result = await clip_svc.arm_latest(game_id)
 
         assert result.game_id == game_id
@@ -35,7 +36,8 @@ class TestClipService:
         empty_dir.mkdir()
         clip_svc._replay_file._config.replay_dir_override = str(empty_dir)
 
-        game_id = await bout_svc.start_game()
+        await bout_svc.ensure_game_row("test-game-1")
+        game_id = "test-game-1"
         with pytest.raises(FileNotFoundError):
             await clip_svc.arm_latest(game_id)
 
@@ -48,7 +50,8 @@ class TestClipService:
         (replay_dir / "replay.mkv").write_bytes(b"x" * 100)
         clip_svc._replay_file._config.replay_dir_override = str(replay_dir)
 
-        game_id = await bout_svc.start_game()
+        await bout_svc.ensure_game_row("test-game-1")
+        game_id = "test-game-1"
         await clip_svc.arm_latest(game_id)
 
         result = await clip_svc.consume_for_jam(game_id)
@@ -59,6 +62,7 @@ class TestClipService:
     async def test_consume_returns_none_when_empty(
         self, clip_svc: ClipService, bout_svc
     ):
-        game_id = await bout_svc.start_game()
+        await bout_svc.ensure_game_row("test-game-1")
+        game_id = "test-game-1"
         result = await clip_svc.consume_for_jam(game_id)
         assert result.play_path is None

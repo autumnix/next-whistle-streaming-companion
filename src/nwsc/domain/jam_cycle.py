@@ -42,7 +42,8 @@ class JamCycleOrchestrator:
 
     async def save_and_arm(self) -> ArmResponse:
         """Save the OBS replay buffer and arm the clip."""
-        game_id = await self._bout.require_current_game()
+        game_id = self._bout.require_current_game()
+        await self._bout.ensure_game_row(game_id)
 
         self._obs.save_replay_buffer()
         await asyncio.sleep(0.5)  # Give OBS time to write the file
@@ -74,8 +75,9 @@ class JamCycleOrchestrator:
         # 2) Clip metadata — best-effort, does not block the operator
         result = None
         try:
-            game_id = await self._bout.get_current_game_id()
+            game_id = self._bout.get_current_game_id()
             if game_id:
+                await self._bout.ensure_game_row(game_id)
                 result = await self._clip.consume_for_jam(game_id)
             else:
                 log.info("jam_reset.no_active_game")
@@ -108,8 +110,9 @@ class JamCycleOrchestrator:
         # Consume clip — if no game or scoreboard/DB fails, treat as "no replay"
         result = None
         try:
-            game_id = await self._bout.get_current_game_id()
+            game_id = self._bout.get_current_game_id()
             if game_id:
+                await self._bout.ensure_game_row(game_id)
                 result = await self._clip.consume_for_jam(game_id)
             else:
                 log.info("jam_reset_and_play.no_active_game")

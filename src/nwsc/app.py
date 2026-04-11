@@ -82,7 +82,7 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
 
     # Domain services
     replay_file_svc = ReplayFileService(config.recordings)
-    bout_svc = BoutService(repo)
+    bout_svc = BoutService(repo, scoreboard_client)
     clip_svc = ClipService(repo, scoreboard_client, replay_file_svc)
     jam_cycle = JamCycleOrchestrator(obs_client, ptz_client, bout_svc, clip_svc, config)
 

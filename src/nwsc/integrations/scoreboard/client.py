@@ -21,6 +21,7 @@ log = structlog.get_logger()
 class ScoreState:
     period: int
     jam: int
+    game_id: str | None = None
 
 
 class ScoreboardClient:
@@ -33,6 +34,7 @@ class ScoreboardClient:
     def __init__(self, config: ScoreboardConfig) -> None:
         self._config = config
         self._ws: websockets.WebSocketClientProtocol | None = None
+        self._game_id: str | None = None
         self._period: int | None = None
         self._jam: int | None = None
         self._connected = False
@@ -48,7 +50,7 @@ class ScoreboardClient:
             staleness = time.monotonic() - self._last_update
             return HealthStatus(
                 healthy=True,
-                detail=f"period={self._period} jam={self._jam} staleness={staleness:.1f}s",
+                detail=f"game={self._game_id} period={self._period} jam={self._jam} staleness={staleness:.1f}s",
             )
         return HealthStatus(healthy=False, detail="not connected or state unknown")
 
@@ -62,6 +64,7 @@ class ScoreboardClient:
         register_msg = {
             "action": "Register",
             "paths": [
+                "ScoreBoard.CurrentGame.Game",
                 "ScoreBoard.CurrentGame.Clock(Jam).Number",
                 "ScoreBoard.CurrentGame.Clock(Period).Number",
             ],
@@ -69,7 +72,7 @@ class ScoreboardClient:
         await self._ws.send(json.dumps(register_msg))
         await self._prime_state()
         self._connected = True
-        log.info("scoreboard.connected", period=self._period, jam=self._jam)
+        log.info("scoreboard.connected", game_id=self._game_id, period=self._period, jam=self._jam)
 
     async def disconnect(self) -> None:
         """Close WebSocket and cancel listener."""
@@ -103,7 +106,7 @@ class ScoreboardClient:
             await self._prime_state()
 
         assert self._period is not None and self._jam is not None
-        return ScoreState(period=self._period, jam=self._jam)
+        return ScoreState(period=self._period, jam=self._jam, game_id=self._game_id)
 
     async def get_state_or_last(self) -> ScoreState:
         """Return the current scoreboard state, falling back to the last known state.
@@ -123,7 +126,11 @@ class ScoreboardClient:
                     jam=self._jam,
                     error=str(e),
                 )
-                return ScoreState(period=self._period, jam=self._jam)
+                return ScoreState(
+                    period=self._period,
+                    jam=self._jam,
+                    game_id=self._game_id,
+                )
             log.warning("scoreboard.no_state_available", error=str(e))
             return ScoreState(period=0, jam=0)
 
@@ -160,11 +167,13 @@ class ScoreboardClient:
     # --- Internal ---
 
     async def _prime_state(self) -> None:
-        """Wait until both period and jam are known."""
+        """Wait until period and jam are known; game_id is best-effort."""
         deadline = time.time() + self._config.prime_timeout_s
         while time.time() < deadline:
             await self._recv_one(timeout=2.0)
             if self._period is not None and self._jam is not None:
+                if self._game_id is None:
+                    log.warning("scoreboard.primed_without_game_id")
                 return
         raise RuntimeError(
             f"Could not prime scoreboard state within {self._config.prime_timeout_s}s"
@@ -191,8 +200,13 @@ class ScoreboardClient:
         if not state_blob:
             return
 
+        log.debug("scoreboard.state_blob", blob=state_blob)
+
         for k, v in state_blob.items():
-            if k.endswith("Clock(Jam).Number"):
+            if k == "ScoreBoard.CurrentGame.Game":
+                self._game_id = str(v)
+                self._last_update = time.monotonic()
+            elif k.endswith("Clock(Jam).Number"):
                 self._jam = int(v)
                 self._last_update = time.monotonic()
             elif k.endswith("Clock(Period).Number"):

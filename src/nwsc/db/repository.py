@@ -13,7 +13,6 @@ log = structlog.get_logger()
 
 # KV key constants
 LAST_PLAYED_KV = "last_played_replay_path"
-CURRENT_GAME_KV = "current_game_id"
 
 
 def last_jam_key(period: int) -> str:
@@ -28,17 +27,13 @@ class Repository:
 
     # --- Games ---
 
-    async def create_game(self, game_id: str) -> None:
+    async def ensure_game(self, game_id: str) -> None:
+        """Ensure a game row exists for the given game_id (idempotent)."""
         async with self._db.connection() as conn:
-            await conn.execute("INSERT INTO games(game_id) VALUES(?)", (game_id,))
-            await self.kv_set(conn, CURRENT_GAME_KV, game_id)
-            await self.kv_set(conn, LAST_PLAYED_KV, "")
+            await conn.execute(
+                "INSERT OR IGNORE INTO games(game_id) VALUES(?)", (game_id,)
+            )
             await conn.commit()
-        log.info("game.created", game_id=game_id)
-
-    async def get_current_game_id(self) -> str | None:
-        async with self._db.connection() as conn:
-            return await self.kv_get(conn, CURRENT_GAME_KV)
 
     async def get_game(self, game_id: str) -> GameRow | None:
         async with self._db.connection() as conn:

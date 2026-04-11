@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+from unittest.mock import MagicMock
+
 import pytest
 from fastapi.testclient import TestClient
 
 from nwsc.app import create_app
 from nwsc.config import load_config
+from nwsc.domain.jam_cycle import JamCycleOrchestrator
 from tests.conftest import FIXTURES_DIR
 
 
@@ -19,8 +22,9 @@ def client(tmp_path, mock_obs, mock_ptz, mock_scoreboard) -> TestClient:
     app.state.obs = mock_obs
     app.state.ptz = mock_ptz
     app.state.scoreboard = mock_scoreboard
-    # Rebuild orchestrator with mocked integrations
-    from nwsc.domain.jam_cycle import JamCycleOrchestrator
+    # Rebuild bout_svc and orchestrator with mock scoreboard
+    from nwsc.domain.bout import BoutService
+    app.state.bout_svc = BoutService(app.state.repo, mock_scoreboard)
     app.state.jam_cycle = JamCycleOrchestrator(
         mock_obs, mock_ptz, app.state.bout_svc, app.state.clip_svc, config
     )
@@ -29,14 +33,16 @@ def client(tmp_path, mock_obs, mock_ptz, mock_scoreboard) -> TestClient:
 
 
 class TestJamReset:
-    def test_jam_reset_works_without_game(self, client: TestClient, mock_obs):
-        """OBS+PTZ should work even with no active game."""
+    def test_jam_reset_works_without_game(
+        self, client: TestClient, mock_obs: MagicMock, mock_scoreboard: MagicMock
+    ):
+        """OBS+PTZ should work even with no active game on scoreboard."""
+        mock_scoreboard._game_id = None
         resp = client.post("/workflow/jam-reset")
         assert resp.status_code == 200
         mock_obs.set_scene.assert_called()
 
-    def test_jam_reset_with_game(self, client: TestClient, mock_obs):
-        client.post("/game/start")
+    def test_jam_reset_with_game(self, client: TestClient, mock_obs: MagicMock):
         resp = client.post("/workflow/jam-reset")
         assert resp.status_code == 200
         data = resp.json()
@@ -51,16 +57,18 @@ class TestJamReset:
 
 
 class TestJamResetAndPlay:
-    def test_works_without_game(self, client: TestClient, mock_obs):
-        """Should degrade to safe scene when no game is active."""
+    def test_works_without_game(
+        self, client: TestClient, mock_obs: MagicMock, mock_scoreboard: MagicMock
+    ):
+        """Should degrade to safe scene when scoreboard has no game."""
+        mock_scoreboard._game_id = None
         resp = client.post("/workflow/jam-reset-and-play")
         assert resp.status_code == 200
         data = resp.json()
         assert data["play_path"] is None
         mock_obs.set_scene.assert_called_with("BUMPER")
 
-    def test_no_replay(self, client: TestClient, mock_obs):
-        client.post("/game/start")
+    def test_no_replay(self, client: TestClient, mock_obs: MagicMock):
         resp = client.post("/workflow/jam-reset-and-play")
         assert resp.status_code == 200
         data = resp.json()
@@ -77,6 +85,9 @@ class TestBackwardCompatRoutes:
         resp = client.post("/obs/jam-reset-and-play")
         assert resp.status_code == 200
 
-    def test_obs_save_and_arm_alias_requires_game(self, client: TestClient):
+    def test_obs_save_and_arm_alias_requires_game(
+        self, client: TestClient, mock_scoreboard: MagicMock
+    ):
+        mock_scoreboard._game_id = None
         resp = client.post("/obs/save-and-arm")
         assert resp.status_code == 409

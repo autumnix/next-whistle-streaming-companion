@@ -45,10 +45,6 @@ class ClipCreate(BaseModel):
 
 # API response models
 
-class GameStartResponse(BaseModel):
-    game_id: str
-
-
 class GameCurrentResponse(BaseModel):
     game_id: str | None
     created_at: str | None = None
