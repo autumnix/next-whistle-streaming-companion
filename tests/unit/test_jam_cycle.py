@@ -223,8 +223,13 @@ class TestSaveAndArm:
     ):
         replay_dir = tmp_path / "replays"
         replay_dir.mkdir()
-        (replay_dir / "replay.mkv").write_bytes(b"x" * 100)
         clip_svc._replay_file._config.replay_dir_override = str(replay_dir)
+
+        # Simulate OBS writing a new replay file when save_replay_buffer is called
+        def create_replay_file():
+            (replay_dir / "replay.mkv").write_bytes(b"x" * 100)
+
+        mock_obs.save_replay_buffer.side_effect = lambda: create_replay_file()
 
         await bout_svc.ensure_game_row("test-game-1")
         resp = await jam_cycle.save_and_arm()

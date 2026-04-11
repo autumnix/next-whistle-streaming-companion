@@ -55,23 +55,26 @@ class ClipService:
             raise FileNotFoundError(f"No replay files found in {replay_dir}")
 
         await self._replay_file.wait_for_stable(latest)
+        return await self.arm_file(game_id, latest)
 
+    async def arm_file(self, game_id: str, path: Path) -> ArmResult:
+        """Arm a specific replay file with current scoreboard state."""
         state = await self._scoreboard.get_state()
 
         clip = ClipCreate(
             game_id=game_id,
             period=state.period,
             jam=state.jam,
-            path=str(latest),
+            path=str(path),
         )
         await self._repo.insert_clip(clip)
 
-        log.info("clip.armed", period=state.period, jam=state.jam, path=str(latest))
+        log.info("clip.armed", period=state.period, jam=state.jam, path=str(path))
         return ArmResult(
             game_id=game_id,
             period=state.period,
             jam=state.jam,
-            path=str(latest),
+            path=str(path),
         )
 
     async def consume_for_jam(self, game_id: str) -> ConsumeResult:

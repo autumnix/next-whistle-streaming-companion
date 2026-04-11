@@ -62,6 +62,22 @@ class ReplayFileService:
         candidates.sort(key=lambda p: p.stat().st_mtime, reverse=True)
         return candidates[0]
 
+    async def wait_for_new_file(
+        self, directory: Path, previous: Path | None
+    ) -> Path:
+        """Wait for a new replay file to appear that differs from `previous`."""
+        deadline = time.time() + self._config.file_stabilize_timeout_s
+        while time.time() < deadline:
+            newest = self.newest_replay_file(directory)
+            if newest is not None and newest != previous:
+                await self.wait_for_stable(newest)
+                return newest
+            await asyncio.sleep(self._config.file_stabilize_poll_s)
+        raise TimeoutError(
+            f"No new replay file appeared in {directory} within "
+            f"{self._config.file_stabilize_timeout_s}s"
+        )
+
     async def wait_for_stable(self, path: Path) -> None:
         """Wait until the file size stops changing (OBS finished writing)."""
         deadline = time.time() + self._config.file_stabilize_timeout_s
