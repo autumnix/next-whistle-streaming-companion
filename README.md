@@ -183,7 +183,7 @@ The workflow and OBS endpoints are intentionally `GET`-friendly so a Stream Deck
 
 ## Related tools
 
-**[obs-tally](https://github.com/autumnix/obs-tally)** — a tally light system for OBS. Useful if you're running a multi-camera setup and want physical on-air/preview indicators at each camera position so operators and talent know which camera is live.
+**[obs-tally](https://github.com/autumnix/obs-tally)** — a tally light system for OBS. Useful if you're running a multi-camera setup and want physical on-air/preview indicators at each camera position so operators and talent know which camera is live. This companion keeps the OBS studio mode preview pane pointed at the camera that isn't currently on air, so the tally signals stay accurate without any extra operator input.
 
 ---
 
