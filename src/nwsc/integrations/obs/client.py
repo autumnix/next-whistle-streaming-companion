@@ -71,19 +71,48 @@ class OBSClient:
         return scene.current_program_scene_name
 
     def set_scene(self, scene_name: str) -> str:
-        """Set program scene, sync preview if studio mode is active. Returns actual scene."""
+        """Set program scene. In studio mode, preview the other camera if applicable."""
         c = self._connect()
-        c.set_current_program_scene(scene_name)
 
         try:
+            studio = c.get_studio_mode_enabled().studio_mode_enabled
+        except Exception:
+            studio = False
+
+        if studio:
+            # In studio mode: set preview first, then transition to program.
+            # This avoids OBS auto-filling preview with the old program scene.
+            preview = self._other_cam(scene_name) or scene_name
+            c.set_current_preview_scene(scene_name)
+            import time
+            time.sleep(0.05)
+            c.set_current_program_scene(scene_name)
+            time.sleep(0.05)
+            c.set_current_preview_scene(preview)
+        else:
+            c.set_current_program_scene(scene_name)
+
+        actual = c.get_current_program_scene()
+        log.info("obs.scene_set", requested=scene_name, actual=actual.current_program_scene_name)
+        return actual.current_program_scene_name
+
+    def set_preview_scene(self, scene_name: str) -> None:
+        """Explicitly set the studio mode preview scene."""
+        try:
+            c = self._connect()
             if c.get_studio_mode_enabled().studio_mode_enabled:
                 c.set_current_preview_scene(scene_name)
         except Exception:
             pass
 
-        actual = c.get_current_program_scene()
-        log.info("obs.scene_set", requested=scene_name, actual=actual.current_program_scene_name)
-        return actual.current_program_scene_name
+    def _other_cam(self, scene_name: str) -> str | None:
+        """Return the other camera scene, or None if not a camera scene."""
+        scenes = self._config.scenes
+        if scene_name == scenes.cam1:
+            return scenes.cam2
+        elif scene_name == scenes.cam2:
+            return scenes.cam1
+        return None
 
     def transition_to_scene(
         self,
@@ -160,7 +189,7 @@ class OBSClient:
     def hide_and_unload_media(
         self, scene_name: str, input_name: str | None = None
     ) -> None:
-        """Hide the media source and clear its file so it can't be replayed."""
+        """Hide the media source, clear its file, and restore preview to other cam."""
         media = input_name or self._config.media_input_name
         try:
             c = self._connect()
@@ -171,6 +200,16 @@ class OBSClient:
                 settings={"local_file": ""},
                 overlay=True,
             )
+            # OBS auto-previews scenes we touch — fix it by setting the
+            # preview to the other camera on the same connection.
+            try:
+                if c.get_studio_mode_enabled().studio_mode_enabled:
+                    program = c.get_current_program_scene().current_program_scene_name
+                    other = self._other_cam(program)
+                    if other:
+                        c.set_current_preview_scene(other)
+            except Exception:
+                pass
             log.info("obs.media_unloaded", scene=scene_name, source=media)
         except Exception as e:
             log.warning("obs.media_unload_failed", scene=scene_name, error=str(e))
