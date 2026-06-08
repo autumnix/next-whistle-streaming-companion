@@ -181,6 +181,12 @@ The workflow and OBS endpoints are intentionally `GET`-friendly so a Stream Deck
 
 ---
 
+## Related tools
+
+**[obs-tally](https://github.com/autumnix/obs-tally)** — a tally light system for OBS. Useful if you're running a multi-camera setup and want physical on-air/preview indicators at each camera position so operators and talent know which camera is live.
+
+---
+
 ## Status
 
 A personal project that runs in production for live roller derby broadcasts. Interfaces are stable enough for daily use; versioning starts at `0.1.0` and the API may still change.
