@@ -114,10 +114,54 @@ pip install -e ".[dev]"
 
 ```bash
 cp config.example.yaml config.yaml
-# edit config.yaml — OBS connection, scene names, camera hosts, scoreboard URL
 ```
 
-The config is grouped into `server`, `database`, `recordings`, `obs`, `ptz`, and `scoreboard` sections; see `config.example.yaml` for every option and its default.
+`config.yaml` is gitignored and never committed — it stays local. Edit it for your rig:
+
+#### OBS (`obs`)
+
+Enable the obs-websocket server in OBS under **Tools → WebSocket Server Settings**. Check "Enable WebSocket Server", set a port (default `4455`), and set a password. Copy those values into `config.yaml`:
+
+```yaml
+obs:
+  host: "127.0.0.1"   # OBS is on the same machine as this service
+  port: 4455
+  password: "your-obs-websocket-password"
+```
+
+Update the `scenes` block to match your actual OBS scene names:
+
+```yaml
+  scenes:
+    cam1: "LIVE - CAM 1"
+    cam2: "LIVE - CAM 2"
+    replay: "REPLAY"
+    safe: "BUMPER"
+```
+
+#### PTZ cameras (`ptz`)
+
+Set each camera's hostname or IP. Using local DNS names (e.g. `cam1.lan`, `cam2.lan`) or fixed IPs is recommended — DHCP addresses will break things mid-bout:
+
+```yaml
+ptz:
+  cameras:
+    cam1:
+      host: "cam1.lan"   # or a fixed IP like 192.168.1.101
+    cam2:
+      host: "cam2.lan"
+```
+
+#### Scoreboard (`scoreboard`)
+
+Point this at your CRG scoreboard's websocket. A local DNS name or fixed IP is strongly recommended here too:
+
+```yaml
+scoreboard:
+  url: "ws://scoreboard.lan:8000/WS/"
+```
+
+See `config.example.yaml` for all available options and their defaults.
 
 ### Run
 
