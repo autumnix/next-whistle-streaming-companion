@@ -141,20 +141,20 @@ Update the `scenes` block to match your actual OBS scene names:
 
 #### PTZ cameras (`ptz`)
 
-Set each camera's hostname or IP. Using local DNS names (e.g. `cam1.lan`, `cam2.lan`) or fixed IPs is recommended — DHCP addresses will break things mid-bout:
+Set each camera's hostname or IP. Local DNS names (e.g. `cam1.lan`, `cam2.lan`) are strongly recommended over fixed IPs or DHCP — if you swap a camera or move to a different venue, you can reassign the DNS entry in your router to point to the new host without touching `config.yaml` or any scripts:
 
 ```yaml
 ptz:
   cameras:
     cam1:
-      host: "cam1.lan"   # or a fixed IP like 192.168.1.101
+      host: "cam1.lan"
     cam2:
       host: "cam2.lan"
 ```
 
 #### Scoreboard (`scoreboard`)
 
-Point this at your CRG scoreboard's websocket. A local DNS name or fixed IP is strongly recommended here too:
+Point this at your CRG scoreboard's websocket. Same reasoning applies: use a local DNS name so you can reassign it to a different scoreboard laptop at a new venue without changing any config:
 
 ```yaml
 scoreboard:
